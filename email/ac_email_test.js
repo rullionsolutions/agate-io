@@ -1,5 +1,3 @@
-/* global print */
-
 "use strict";
 
 var Data = require("lazuli-data/index.js");
@@ -65,9 +63,11 @@ module.exports.dummy_tokens = {
 
 
 module.exports.define("testExistingEmail", function (email_id, addr, html, footer) {
-    var s = Access.Session.clone({user_id:"batch"}),
-        options,
-        email_row;
+    var s = Access.Session.clone({
+        user_id:"batch",
+    });
+    var options;
+    var email_row;
 
     try {
         Rhino.app.smtp_mail_server = "10.12.1.16";
@@ -84,7 +84,7 @@ module.exports.define("testExistingEmail", function (email_id, addr, html, foote
         options.attached_files = JSON.parse(email_row.getField("attached_files").get() || "[]");
         Data.entities.get("ac_email").create(options).send();
     } catch (e) {
-        print(e);
+        this.report(e);
     } finally {
         delete Rhino.app.smtp_mail_server;
         delete Rhino.app.smtp_from_addr;
@@ -94,8 +94,10 @@ module.exports.define("testExistingEmail", function (email_id, addr, html, foote
 
 
 module.exports.define("testEmail", function (addr) {
-    var s = Access.Session.clone({ user_id:"batch", }),
-        options;
+    var s = Access.Session.clone({
+        user_id:"batch",
+    });
+    var options;
     try {
         Rhino.app.smtp_mail_server = "10.12.1.16";
         Rhino.app.smtp_from_addr   = "rsl.support@rullion.co.uk";
@@ -115,7 +117,7 @@ module.exports.define("testEmail", function (addr) {
             }
         });
     } catch (e) {
-        print(e);
+        this.report(e);
     } finally {
         delete Rhino.app.smtp_mail_server;
         delete Rhino.app.smtp_from_addr;

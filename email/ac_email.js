@@ -800,7 +800,7 @@ module.exports.define("setHTMLMsg", function () {
         this.embedCidData(email);
     }
     email.setHtmlMsg(this.body);
-    email.setTextMsg(IO.HttpServer.removeTags(this.body));
+    email.setTextMsg(IO.JSoup.removeTags(this.body));
     if (this.attach_content_type && this.attach_data) {
         email.addPart(this.attach_data, this.attach_content_type);
     }
@@ -810,7 +810,7 @@ module.exports.define("setHTMLMsg", function () {
 module.exports.define("setTextMsg", function () {
     var email = new Packages.org.apache.commons.mail.SimpleEmail();
     email.setCharset("UTF-8");
-    email.setMsg(IO.HttpServer.removeTags(this.body));
+    email.setMsg(IO.JSoup.removeTags(this.body));
     if (this.attach_content_type && this.attach_data) {
         this.error("Non html email doesn't support attachments");
     }
