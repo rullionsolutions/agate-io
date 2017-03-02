@@ -396,7 +396,7 @@ module.exports.define("loadEmailTemplateMap", function () {
         function loadPartFile(tmpl_file_path) {
             var str;
             if (IO.File.exists(tmpl_file_path)) {
-                str = IO.File.realReadFile(tmpl_file_path);
+                str = IO.File.readFile(tmpl_file_path);
             }
             return str;
         }
