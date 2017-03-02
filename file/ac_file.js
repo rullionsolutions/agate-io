@@ -74,7 +74,7 @@ module.exports.getField("url").override("getURLFromVal", function () {
         this.owner.page.session.allowed_files = {};
     }
     this.owner.page.session.allowed_files[this.get()] = true;
-    return "file/" + encodeURIComponent(this.owner.getField("title").get()) +
+    return "dyn/" + encodeURIComponent(this.owner.getField("title").get()) +
         "?mode=filedown&id=" + this.get();
 });
 
