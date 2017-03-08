@@ -145,6 +145,26 @@ module.exports.addFields([
     },
 ]);
 
+
+module.exports.define("populateArrayWithRegexpMatches", function (found_matches, reg_exp, source) {
+    var match_str;
+    var match_array;
+    var getMatch = function (regex) {
+        match_array = regex.exec(source);
+        return (match_array !== null);
+    };
+
+    found_matches = found_matches || [];
+
+    while (getMatch(reg_exp)) {
+        match_str = match_array[0] && match_array[0].trim();
+        if (match_str && found_matches.indexOf(match_str) === -1) {
+            found_matches.push(match_array[0]);
+        }
+    }
+});
+
+
 /**
  * [description] Used to match plain text url to htmlify after
  * @param  source_text
@@ -152,78 +172,126 @@ module.exports.addFields([
  */
 module.exports.define("extractURLArray", function (text) { // duplicate urls are supported
     var source = (text || "").toString();
-    var urlArray = [];
+    var url_array = [];
     var reg_exp_list = [
         /(((ftp|https?):\/\/)[-\w@:%_+.~#?,&//=]+)/g, // links
         /((mailto:)?[_.\w-]+@([\w][\w-]+\.)+[a-zA-Z]{2,3})/g, // emails
     ];
+    // catch all the url plain and html
+    reg_exp_list.forEach(function (reg_exp) {
+        this.populateArrayWithRegexpMatches(url_array, reg_exp, source);
+    }, this);
 
-    function addMatches(reg_exp) {
-        var match_str;
-        var matchArray;
-
-        function getMatch(regex) {
-            matchArray = regex.exec(source);
-            return (matchArray !== null);
-        }
-
-        while (getMatch(reg_exp)) {
-            match_str = matchArray[0] && matchArray[0].trim();
-            if (match_str && urlArray.indexOf(match_str) === -1) {
-                urlArray.push(matchArray[0]);
-            }
-        }
-    }
-
-    reg_exp_list.forEach(addMatches);
-
-    return urlArray.length > 0 ? urlArray : null;
+    return url_array;
 });
 
-module.exports.define("plainTextURLToHTMLURL", function (text) {
-    var urls;
+
+module.exports.define("extractHTMLURLArray", function (text) { // duplicate urls are supported
+    var source = (text || "").toString();
+    var html_url_array = [];
+
+    this.populateArrayWithRegexpMatches(
+        html_url_array,
+        /<a[\s]+([^>]+)>((?:.(?!<\/a>))*.)<\/a>/g,
+        source
+    );
+
+    return html_url_array;
+});
+
+
+module.exports.define("plainTextURLToHTMLURL", function (url_id, plain_url) {
+    var jsoup_package = Packages.org.jsoup;
+    var html_url;
+    var href = plain_url.trim();
+    var url_text = href;
+    if (href.indexOf("@") !== -1) {
+        href = "mailto:" + href;
+    }
+    url_text = jsoup_package.Jsoup.clean(url_text, jsoup_package.safety.Whitelist.none());
+    html_url = "<a id='" + url_id + "' href='" + href + "'>" + url_text + "</a>";
+    return html_url;
+});
+
+
+module.exports.define("escapeRegExp", function (text) {
+    return text.replace(/([.*+?^=!:${}()|[\]/\\])/g, "\\$1");
+});
+
+
+module.exports.define("replacePlainTextURLs", function (text) {
+    var email_row = this;
+    var url_array;
+    var html_url_array;
     var local_text = text;
-    // var jsoup = Packages.org.jsoup.Jsoup;
-
-    function getHTMLUrl(url_id, plain_url) {
-        var html_url;
-        var href = plain_url.trim();
-        var url_text = href;
-
-        if (href.indexOf("@") !== -1) {
-            href = "mailto:" + href;
-        }
-
-        // url_text = jsoup.clean(url_text, Packages.org.jsoup.safety.Whitelist.none());
-        url_text = IO.JSoup.clean(url_text);
-
-        html_url = "<a id='" + url_id + "' href='" + href + "'>" + url_text + "</a>";
-
-        return html_url;
-    }
-
-    function replaceURLs(plain_url, index) {
-        var url_id = "url_" + index;
-        var html_url = getHTMLUrl(url_id, plain_url);
-        if (local_text.indexOf(url_id) === -1) { // check whether or not has been replaced
-            local_text = local_text.split(plain_url).join(html_url);
-        }
-    }
+    var plain_url_pos = 0;
 
     if (this.use_html_format) {
-        urls = this.extractURLArray(local_text);
-        if (urls !== null) {
-            // Handle URLs to the main application
-            urls.forEach(replaceURLs);
-        }
+        url_array = this.extractURLArray(local_text) || [];
+        html_url_array = this.extractHTMLURLArray(local_text) || [];
+        html_url_array.forEach(function (html_url, pos) {
+            local_text = local_text.replace(html_url, "____html____" + pos);
+        });
+        url_array.forEach(function (url) {
+            if (local_text.indexOf("____url____" + plain_url_pos) === -1) {
+                local_text = local_text.replace(new RegExp(email_row.escapeRegExp(url), "g"), function () {
+                    var url_id = "____url____" + plain_url_pos;
+                    var replacement = email_row.plainTextURLToHTMLURL(url_id, url);
+                    plain_url_pos += 1;
+                    return replacement;
+                });
+            }
+        });
+        html_url_array.forEach(function (html_url, pos) {
+            local_text = local_text.replace("____html____" + pos, html_url);
+        });
     }
 
     return local_text;
 });
 
+
+module.exports.define("replaceCidTokens", function (text) {
+    this.cids.each(function (cid) {
+        if (text.indexOf(cid.cid_uri) !== -1) {
+            text = text.split(cid.cid_uri).join(cid.data_uri);
+        }
+    });
+    return text;
+});
+
+
+module.exports.define("getBodyWithImagesEmbedded", function () {
+    return this.replaceCidTokens(this.getField("body").get());
+});
+
+
 module.exports.getField("body").override("renderUneditable", function (elem) { // render_opts, inside_table) {
+    var preview_url =
+        Rhino.app.base_uri +
+        "dyn/?mode=renderEmailPreview&page_id=ac_email_display&page_key=" +
+        this.owner.getKey();
     var style = this.getUneditableCSSStyle();
     var text = this.getText();
+    var this_email = this;
+    var getIframeCode = function (iframe_html) {
+        var outer_html =
+            "<iframe id='email_preview'  title='Email Preview' " +
+            "style='width:100%; height: 300px' " +
+            "scrolling='no' frameborder='0' " +
+            "src='" + preview_url + "' " +
+            "onload='(function () { $(\"#email_preview\").height($($(\"#email_preview\")[0].contentWindow.window.document).height())})()'" +
+            "/>";
+        return outer_html;
+    };
+    var addTextNoEscape = function (local_text, orig_escape) {
+        IO.JSoup.escape = function (str) {
+            return str;
+        };
+        // don't escape markup if richtext
+        elem.addText(getIframeCode(local_text), this_email.css_richtext);
+        return orig_escape;
+    };
     if (style) {
         elem.attribute("style", style);
     }
@@ -233,9 +301,10 @@ module.exports.getField("body").override("renderUneditable", function (elem) { /
                 text = text.split(cid.cid_uri).join(cid.data_uri);
             }
         });
-        elem.text(text, false, this.css_richtext);        // don't escape markup if richtext
+        IO.JSoup.escape = addTextNoEscape(text, IO.JSoup.escape);
     }
 });
+
 
 module.exports.define("indexes", [
     "id",
@@ -298,7 +367,7 @@ module.exports.define("getFullTemplate", function (template_id) {
     var result = [];
 
     this.template_map.get(template_id).template_part_arr.each(function (template_part) {
-        result.push(template_part.getText(this_email.body));
+        result.push(template_part.getText(this_email, this_email.body));
     });
 
     return result.join("");
@@ -326,7 +395,7 @@ module.exports.template_map.get("system").template_part_arr.addAll([
         id: "header",
         file_name: "header.html",
         text: "", // loaded after
-        getText: function (email_base_text) {
+        getText: function (email_row, email_base_text) {
             return this.text;
         },
     }),
@@ -334,15 +403,15 @@ module.exports.template_map.get("system").template_part_arr.addAll([
         id: "body",
         file_name: "",
         text: "", // loaded after
-        getText: function (email_base_text) {
-            return module.exports.plainTextURLToHTMLURL(email_base_text);
+        getText: function (email_row, email_base_text) {
+            return email_row.replacePlainTextURLs(email_base_text);
         },
     }),
     Core.Base.clone({
         id: "footer",
         file_name: "footer.html",
         text: "", // loaded after
-        getText: function (email_base_text) {
+        getText: function (email_row, email_base_text) {
             return this.text;
         },
     }),
@@ -404,12 +473,12 @@ module.exports.define("loadEmailTemplateMap", function () {
             var file_name;
 
             if (template_part_obj.file_name) {
-                file_name = "/ac/email/template/"
+                file_name = "/agate-io/email/template/"
                           + template_obj.id + "/"
                           + template_part_obj.file_name;
-                template_part_obj.text = loadPartFile(Rhino.app.emerald_dir + "/overlays" + file_name);
+                template_part_obj.text = loadPartFile(Rhino.app.emerald_dir + "overlays" + file_name);
                 if (!template_part_obj.text) {  // or default
-                    template_part_obj.text = loadPartFile(Rhino.app.sapphire_dir + file_name);
+                    template_part_obj.text = loadPartFile(Rhino.app.sapphire_dir + "../" + file_name);
                 }
             }
         });
