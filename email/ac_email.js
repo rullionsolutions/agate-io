@@ -8,6 +8,8 @@ var SQL = require("lazuli-sql/index.js");
 var IO = require("lazuli-io/index.js");
 var Rhino = require("lazuli-rhino/index.js");
 
+print(module.uri);
+print(IO.File.getModulePath(module));
 
 module.exports = Data.Entity.clone({
     id: "ac_email",
@@ -473,10 +475,10 @@ module.exports.define("loadEmailTemplateMap", function () {
             var file_name;
 
             if (template_part_obj.file_name) {
-                file_name = "/email/template/"
+                file_name = "/template/"
                           + template_obj.id + "/"
                           + template_part_obj.file_name;
-                template_part_obj.text = loadPartFile(Rhino.app.emerald_dir + "overlays" + file_name);
+                template_part_obj.text = loadPartFile(Rhino.app.emerald_dir + "overlays/email/" + file_name);
                 if (!template_part_obj.text) {  // or default
                     template_part_obj.text = loadPartFile(IO.File.getModulePath(module) + file_name);
                 }
