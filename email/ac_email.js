@@ -473,12 +473,12 @@ module.exports.define("loadEmailTemplateMap", function () {
             var file_name;
 
             if (template_part_obj.file_name) {
-                file_name = "/agate-io/email/template/"
+                file_name = "/email/template/"
                           + template_obj.id + "/"
                           + template_part_obj.file_name;
                 template_part_obj.text = loadPartFile(Rhino.app.emerald_dir + "overlays" + file_name);
                 if (!template_part_obj.text) {  // or default
-                    template_part_obj.text = loadPartFile(Rhino.app.sapphire_dir + "../" + file_name);
+                    template_part_obj.text = loadPartFile(IO.File.getModulePath(module) + file_name);
                 }
             }
         });
