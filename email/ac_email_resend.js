@@ -50,7 +50,7 @@ module.exports.defbind("updateAfterSections", "updateAfterSections", function (p
 
     if (params.page_button === "save") {
         curr_email = this.getPrimaryRow();
-        new_email = curr_email.cloneAutoIncrement(
+        new_email = Data.entities.get("ac_email").cloneAutoIncrement(
             curr_email.copyBaseSpec(), {
             to_addr: this.sections.get("params").fieldset.getField("to_addr").get(),
         });
