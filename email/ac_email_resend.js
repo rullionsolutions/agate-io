@@ -55,7 +55,6 @@ module.exports.defbind("updateAfterSections", "updateAfterSections", function (p
             to_addr: this.sections.get("params").fieldset.getField("to_addr").get(),
         });
         new_email.id = new_email.getKey();
-        new_email.initialize();
         new_email.send();
     }
 });
