@@ -272,7 +272,6 @@ module.exports.getField("body").override("renderUneditable", function (elem) { /
         this.owner.getKey();
     var style = this.getUneditableCSSStyle();
     var text = this.getText();
-    var this_email = this;
     var getIframeCode = function (iframe_html) {
         var outer_html =
             "<iframe id='email_preview'  title='Email Preview' " +
@@ -283,14 +282,6 @@ module.exports.getField("body").override("renderUneditable", function (elem) { /
             "/>";
         return outer_html;
     };
-    var addTextNoEscape = function (local_text, orig_escape) {
-        IO.JSoup.escape = function (str) {
-            return str;
-        };
-        // don't escape markup if richtext
-        elem.addText(getIframeCode(local_text), this_email.css_richtext);
-        return orig_escape;
-    };
     if (style) {
         elem.attribute("style", style);
     }
@@ -300,7 +291,8 @@ module.exports.getField("body").override("renderUneditable", function (elem) { /
                 text = text.split(cid.cid_uri).join(cid.data_uri);
             }
         });
-        IO.JSoup.escape = addTextNoEscape(text, IO.JSoup.escape);
+
+        elem.text(getIframeCode(text), true, true);
     }
 });
 
