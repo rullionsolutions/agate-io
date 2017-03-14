@@ -6,18 +6,26 @@ var Data = require("lazuli-data/index.js");
 
 
 module.exports = UI.Page.clone({
-    id                     : "ac_email_resend",
-    entity_id       : "ac_email",
-    title                  : "Re-send this Email",
-    requires_key           : true,
-    transactional          : true,
-    allow_no_modifications : true
+    id: "ac_email_resend",
+    entity_id: "ac_email",
+    title: "Re-send this Email",
+    requires_key: true,
+    transactional: true,
+    allow_no_modifications: true,
 });
 
 
 module.exports.sections.addAll([
-    { id: "main"  , type: "Display"   , entity: "ac_email" },
-    { id: "params", type: "FormParams", text: "You can enter a new e-mail address otherwise the one below will be used." }
+    {
+        id: "main",
+        type: "Display",
+        entity: "ac_email",
+    },
+    {
+        id: "params",
+        type: "FormParams",
+        text: "You can enter a new e-mail address otherwise the one below will be used.",
+    }
 ]);
 
 
@@ -52,8 +60,8 @@ module.exports.defbind("updateAfterSections", "updateAfterSections", function (p
         curr_email = this.getPrimaryRow();
         new_email = Data.entities.get("ac_email").cloneAutoIncrement(
             curr_email.copyBaseSpec(), {
-            to_addr: this.sections.get("params").fieldset.getField("to_addr").get(),
         });
+        new_email.to_addr = this.sections.get("params").fieldset.getField("to_addr").get();
         new_email.id = new_email.getKey();
         new_email.send();
     }
