@@ -8,9 +8,6 @@ var SQL = require("lazuli-sql/index.js");
 var IO = require("lazuli-io/index.js");
 var Rhino = require("lazuli-rhino/index.js");
 
-print(module.uri);
-print(IO.File.getModulePath(module));
-
 module.exports = Data.Entity.clone({
     id: "ac_email",
     title: "Email",
