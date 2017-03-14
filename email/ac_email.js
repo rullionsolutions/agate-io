@@ -489,7 +489,7 @@ Rhino.app.defbind("emailCids", "loadEnd", function () {
     module.exports.loadEmailTemplateMap();
 });
 /** End embed functionality */
-/*
+
 module.exports.define("copyBaseSpec", function () { // transactional
     return {
         session: this.trans.session,
@@ -508,7 +508,6 @@ module.exports.define("copyBaseSpec", function () { // transactional
         attached_files: JSON.parse(this.getField("attached_files").get() || "[]"),
     };
 });
-*/
 
 module.exports.define("create", function (options) {
     var email_row = this.createPerUser(options);
