@@ -494,14 +494,6 @@ module.exports.define("copyBaseSpec", function () { // transactional
     return {
         session: this.trans.session,
         page: this.page,
-        id: String(Data.entities.get("ac_max_key").generate(
-            "ac_email",
-            null,
-            null,
-            "id",
-            null,
-            this.trans.session
-        )),
         subject: this.getField("subject").getText(),
         body: this.getField("body").getText(),
         text_string: this.getField("text_string").get(),

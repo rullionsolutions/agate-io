@@ -46,14 +46,15 @@ module.exports.defbind("setAddress", "setupEnd", function () {
 
 module.exports.defbind("updateAfterSections", "updateAfterSections", function (params) {
     var curr_email;
-    var new_spec;
     var new_email;
 
     if (params.page_button === "save") {
         curr_email = this.getPrimaryRow();
-        new_spec = curr_email.copyBaseSpec();
-        new_spec.to_addr = this.sections.get("params").fieldset.getField("to_addr").get();
-        new_email = Data.entities.get("ac_email").clone(new_spec);
+        new_email = curr_email.cloneAutoIncrement(
+            curr_email.copyBaseSpec(), {
+            to_addr: this.sections.get("params").fieldset.getField("to_addr").get(),
+        });
+        new_email.id = new_email.getKey();
         new_email.initialize();
         new_email.send();
     }
