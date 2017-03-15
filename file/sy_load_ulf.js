@@ -27,7 +27,7 @@ module.exports.defbind("setupEnd", "setupEnd", function () {
     fieldset.addFields([
         { id: "file", type: "File", label: "ULF File", /* css_reload: true, File fields don't do this at the moment */
             allowed_extensions: "csv" },
-        { id: "override_validtions", type: "Boolean", label: "Override Validations?" },
+        { id: "override_validations", type: "Boolean", label: "Override Validations?" },
     ]);
     this.ulf = IO.FileProcessorULF.clone({
         id: "ulf",
@@ -38,7 +38,7 @@ module.exports.defbind("setupEnd", "setupEnd", function () {
 module.exports.defbind("updateAfterSections", "updateAfterSections", function (params) {
     var fieldset = this.sections.get("params").fieldset;
     var file_field = fieldset.getField("file");
-    this.ulf.override_all_validations = (fieldset.getField("override_validtions").get() === "Y");
+    this.ulf.override_all_validations = (fieldset.getField("override_validations").get() === "Y");
     if (params.page_button === "exec") {
         if (!file_field.isBlank()) {
             this.runULF(file_field.get());
@@ -48,28 +48,19 @@ module.exports.defbind("updateAfterSections", "updateAfterSections", function (p
 
 
 module.exports.define("runULF", function (file_id) {
-    var ulf_out;
     try {
         this.ulf.file_id = file_id;
-        ulf_out = this.ulf.process(this.session);
+        this.ulf.process(this.session);
     } catch (e) {
         this.session.messages.report(e);
         this.report(e);
     }
-    if (ulf_out) {
-        this.session.messages.add({ type: "I", text: "Pages saved successfully: " + ulf_out.page_saved });
-        if (ulf_out.error) {
-            this.session.messages.add({ type: "E", text: ulf_out.error });
-        }
-        if (ulf_out.page_error) {
-            this.session.messages.add({ type: "E", text: "Pages not saved: " + ulf_out.page_error });
-        }
-        if (ulf_out.page_fail) {
-            this.session.messages.add({ type: "E", text: "Pages failed: " + ulf_out.page_fail });
-        }
-        if (ulf_out.first_session) {
-            this.redirect_url = UI.pages.get("ac_session_display").getSimpleURL(ulf_out.first_session.id);
-        }
+    this.session.messages.add({ type: "I", text: "Pages saved successfully: " + this.ulf.counters.page_saved });
+    if (this.ulf.counters.page_error) {
+        this.session.messages.add({ type: "E", text: "Pages not saved: " + this.ulf.counters.page_error });
     }
-//            this.cancel();
+    if (this.ulf.counters.page_fail) {
+        this.session.messages.add({ type: "E", text: "Pages failed: " + this.ulf.counters.page_fail });
+    }
+    this.redirect_url = UI.pages.get("ac_session_display").getSimpleURL(this.session.id);
 });
