@@ -93,7 +93,7 @@ module.exports.addFields([
         type: "Text",
         editable: false,
         data_length: 40,
-        config_item: "pages",
+        collection_id: "pages",
     },
     {
         id: "created_at",
