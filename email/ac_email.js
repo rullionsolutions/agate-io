@@ -720,7 +720,7 @@ module.exports.define("updateRecord", function (sent) {
         prepared_statement.setString(2, this.body);
         prepared_statement.setString(3, this.status);
         prepared_statement.setString(4, this.status_msg);
-        prepared_statement.setString(5, this.text_string);
+        prepared_statement.setString(5, this.text_string || null);
         prepared_statement.setString(6, this.attach_content_type || "");
         prepared_statement.setString(7, this.attach_data || "");
         prepared_statement.setString(8, JSON.stringify(this.attached_files));
@@ -808,7 +808,7 @@ module.exports.define("real_send", function () {
             }
         }
 
-        email.setSubject(this.subject);
+        email.setSubject(IO.JSoup.removeTags(this.subject));
         email.setHostName(Rhino.app.smtp_mail_server);
 
         if (this.use_html_format) {
