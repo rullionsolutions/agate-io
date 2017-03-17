@@ -808,7 +808,7 @@ module.exports.define("real_send", function () {
             }
         }
 
-        email.setSubject(IO.JSoup.removeTags(this.subject));
+        email.setSubject(IO.JSoup.unescape(this.subject));
         email.setHostName(Rhino.app.smtp_mail_server);
 
         if (this.use_html_format) {
