@@ -462,6 +462,9 @@ module.exports.define("loadEmailTemplateMap", function () {
         }
         template_obj.template_part_arr.each(function (template_part_obj) {
             var file_name;
+            // var module_path = IO.File.getModulePath(module);            // DOESN'T WORK IN TOMCAT
+            var module_path = Rhino.app.sapphire_dir + "../";               // TODO - doesn't allow for agate-io in different node_modules dir...
+            IO.File.debug("getModulePath(" + module + ") = " + module_path);
 
             if (template_part_obj.file_name) {
                 file_name = "/template/"
@@ -469,7 +472,7 @@ module.exports.define("loadEmailTemplateMap", function () {
                           + template_part_obj.file_name;
                 template_part_obj.text = loadPartFile(Rhino.app.emerald_dir + "overlays/email/" + file_name);
                 if (!template_part_obj.text) {  // or default
-                    template_part_obj.text = loadPartFile(IO.File.getModulePath(module) + file_name);
+                    template_part_obj.text = loadPartFile(module_path + file_name);
                 }
             }
         });
