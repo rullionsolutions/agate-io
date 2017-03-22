@@ -485,6 +485,26 @@ Rhino.app.defbind("emailCids", "loadEnd", function () {
 });
 /** End embed functionality */
 
+
+// re-populate properties from fields
+module.exports.define("populatePropertiesFromFields", function () {
+    var that = this;
+    var fields = [ "id", "to_addr", "to_user", "subject", "body", "attach_content_type", "attach_data",
+        ];
+
+    fields.forEach(function (field) {
+        that[field] = that.getField(field).get();
+    });
+    this.attached_files = JSON.parse(this.getField("attached_files").get() || "[]");
+});
+
+
+module.exports.override("populate", function (resultset) {
+    Data.Entity.populate.call(this, resultset);
+    this.populatePropertiesFromFields();
+});
+
+
 module.exports.define("copyBaseSpec", function () { // transactional
     return {
         session: this.trans.session,
@@ -495,6 +515,20 @@ module.exports.define("copyBaseSpec", function () { // transactional
         attached_files: JSON.parse(this.getField("attached_files").get() || "[]"),
     };
 });
+
+/*
+use this when 'populate' happen added to Entity
+module.exports.defbind("populatePropertiesFromFields", "populate", function () {
+    var that = this;
+    function copyPropertyFromField(field_id) {
+        that[field_id] = that.getField(field_id).get();
+    }
+    copyPropertyFromField("to_addr");
+    copyPropertyFromField("to_user");
+    copyPropertyFromField("subject");
+    copyPropertyFromField("body");
+});
+*/
 
 module.exports.define("create", function (options) {
     var email_row = this.createPerUser(options);
@@ -537,7 +571,7 @@ module.exports.define("createPerUser", function (options) {
         to_user    : options.to_user || "",
         status     : options.status || "D",
         status_msg : "Not tried to send",
-        created_at : "now",
+        created_at : "NOW",
     });
     email_row.id = email_row.getKey();
     email_row.attached_files = options.attached_files || [];
@@ -688,25 +722,6 @@ module.exports.define("initialize", function () {
     }
 });
 */
-
-// re-populate properties from fields
-module.exports.define("populatePropertiesFromFields", function () {
-    var that = this;
-    var fields = ["to_addr", "to_user", "subject", "body", "attach_content_type", "attach_data",
-        ];
-
-    fields.forEach(function (field) {
-        that[field] = that.getField(field).get();
-    });
-    this.attached_files = JSON.parse(this.getField("attached_files").get() || "[]");
-});
-
-
-module.exports.override("populate", function (resultset) {
-    Data.Entity.populate.call(this, resultset);
-    this.populatePropertiesFromFields();
-});
-
 
 module.exports.define("updateRecord", function (sent) {
     var sql = "UPDATE ac_email SET subject=?, body=?, status=?, status_msg=?, text_string=?, attach_content_type=?, attach_data=?, attached_files=?";
