@@ -144,6 +144,277 @@ module.exports.addFields([
     },
 ]);
 
+module.exports.define("indexes", [
+    "id",
+    "session_id, id",
+    "to_user",
+]);
+
+
+module.exports.getField("body").override("renderUneditable", function (elem) { // render_opts, inside_table) {
+    var preview_url =
+        Rhino.app.base_uri +
+        "dyn/?mode=renderEmailPreview&page_id=ac_email_display&page_key=" +
+        this.owner.getKey();
+    var style = this.getUneditableCSSStyle();
+    var text = this.getText();
+    var getIframeCode = function (iframe_html) {
+        var outer_html =
+            "<iframe id='email_preview'  title='Email Preview' " +
+            "style='width:100%; height: 300px' " +
+            "scrolling='no' frameborder='0' " +
+            "src='" + preview_url + "' " +
+            "onload='(function () { $(\"#email_preview\").height($($(\"#email_preview\")[0].contentWindow.window.document).height())})()'" +
+            "/>";
+        return outer_html;
+    };
+    if (style) {
+        elem.attribute("style", style);
+    }
+    if (text) {
+        this.owner.cids.each(function (cid) {
+            if (text.indexOf(cid.cid_uri) !== -1) {
+                text = text.split(cid.cid_uri).join(cid.data_uri);
+            }
+        });
+
+        elem.text(getIframeCode(text), true, true);
+    }
+});
+
+
+// ------------------------------------------------------------------ initial creation
+
+module.exports.define("create", function (options) {
+    var email_row = this.createPerUser(options);
+    var query;
+
+    if (options.include_delegates) {
+        if (!options.to_user) {
+            this.throwError({
+                id: "invalid_option",
+                text: "'include_delegates' parameter specified with blank 'to_user' property",
+            });
+        }
+        email_row.delegates_email_rows = [];
+        query = Data.entities.get("ac_user_deleg").getQuery();
+        query.addCondition({
+            column: "A.delegater",
+            operator: "=",
+            value: options.to_user,
+        });
+        query.addCondition({
+            column: "A.get_ntfcns",
+            operator: "=",
+            value: "Y",
+        });
+        while (query.next()) {
+            options.to_user = query.getColumn("A.delegatee").get();
+            email_row.delegates_email_rows.push(this.createPerUser(options));
+        }
+        query.reset();
+    }
+    return email_row;
+});
+
+
+module.exports.define("createPerUser", function (options) {
+    var email_row = module.exports.cloneAutoIncrement(options, {
+        session_id: options.session.getSessionId(),
+        page: (options.page && options.page.id) || "",
+        to_user: options.to_user || "",
+        status: options.status || "D",
+        status_msg: "Not tried to send",
+        text_string: (options.text_string || ""),
+        created_at: "NOW",
+    });
+    email_row.id = email_row.getKey();
+    email_row.attached_files = options.attached_files || [];
+    email_row.populateFromUser();
+    email_row.populateFromTextString();
+    email_row.updateRecord(false);
+    if (email_row.page) {
+        email_row.page.addEmailRow(email_row);
+    }
+    // email_row.initialize();
+    return email_row;
+});
+
+
+module.exports.define("populateFromUser", function () {
+    var user_row;
+    if (this.to_user) {
+        if (this.trans && this.trans.isInCache("ac_user", this.to_user)) {
+            user_row = this.trans.getActiveRow("ac_user", this.to_user);
+        } else {
+            user_row = Data.entities.get("ac_user").getRow(this.to_user);
+        }
+
+        if (user_row.getField("email_verification").get() === "R") {
+            this.fatal("User's '" + user_row.getKey() + "' email address is repudiated");
+            this.session.messages.add({
+                type: "W",
+                text: "Users '" + user_row.getKey() + "' email address is not verified",
+            });
+            this.repudiated = true;
+        }
+
+        this.user_name = this.user_name || user_row.getField("name").get();
+        this.to_addr = this.to_addr || user_row.getField("email").get();
+    }
+
+    if (typeof this.to_addr !== "string") {
+        this.throwError({
+            id: "invalid_option",
+            text: "'to_addr' parameter is missing or not a string",
+            text_string: this.text_string,
+        });
+    }
+
+    if (this.user_name) {
+        this.nice_name = this.nice_name || Core.Format.convertNameFirstSpaceLast(this.user_name);
+        this.first_name = this.first_name || Core.Format.convertNameFirstOnly(this.user_name);
+        this.last_name = this.last_name || Core.Format.convertNameLastOnly(this.user_name);
+    }
+    // C9625
+    this.email_header = this.nice_name ? this.email_header + this.nice_name + ",<br/>" : "";
+});
+
+
+module.exports.define("populateFromTextString", function () {
+    var text_string;
+    if (this.text_string) {
+        text_string = Data.entities.get("sy_text").getText(this.text_string);
+        if (!text_string) {
+            this.throwError("unrecognized text string: " + this.text_string);
+        }
+        this.subject = this.subject || text_string.text;
+        this.body = this.body || text_string.detail;
+        if (text_string.calendar_event) {
+            this.event_digest = this.event_title;
+            this.attach_content_type = "text/calendar";
+            this.attach_data = Core.Format.getVCalString(this);
+        }
+    }
+    this.app_title = this.app_title || Rhino.app.title;
+    this.app_id = Rhino.app.app_id;
+    this.email_id = this.id;
+    this.base_uri = this.base_uri || Rhino.app.base_uri;
+    this.product_name = this.product_name || Rhino.app.product_name;
+    this.client_name = this.client_name || (Rhino.app.client && Rhino.app.client.organization_name);
+    if (typeof this.subject !== "string") {
+        this.throwError({
+            id: "invalid_option",
+            text: "'subject' parameter is missing or not a string",
+            text_string: this.text_string,
+        });
+    }
+    if (typeof this.body !== "string") {
+        this.throwError({
+            id: "invalid_option",
+            text: "'body' parameter is missing or not a string",
+            text_string: this.text_string,
+        });
+    }
+    if (this.use_html_format) {
+        this.populateHTML();
+    } else {
+        this.populateText();
+    }
+});
+
+
+module.exports.define("updateRecord", function (sent) {
+    var sql = "UPDATE ac_email SET subject=?, body=?, status=?, status_msg=?, text_string=?, " +
+        "to_addr=?, attach_content_type=?, attach_data=?, attached_files=?";
+    var prepared_statement;
+
+    this.debug("updateRecord(): " + this.subject + ", " + this.status + ", " + this.status_msg + ", " +
+        this.text_string + ", " + this.to_addr);
+    if (sent) {
+        sql += ", sent_at = NOW()";
+    }
+    sql += " WHERE id=?";
+    try {
+        prepared_statement = SQL.Connection.shared.prepareStatement(sql);
+        prepared_statement.setString(1, this.subject);
+        prepared_statement.setString(2, this.body);
+        prepared_statement.setString(3, this.status);
+        prepared_statement.setString(4, this.status_msg);
+        prepared_statement.setString(5, this.text_string || null);
+        prepared_statement.setString(6, this.to_addr);
+        prepared_statement.setString(7, this.attach_content_type || null);
+        prepared_statement.setString(8, this.attach_data || null);
+        prepared_statement.setString(9, JSON.stringify(this.attached_files));
+        prepared_statement.setInt(10, this.id);
+        prepared_statement.executeUpdate();
+    } catch (e) {
+        this.report(e);
+    } finally {
+        SQL.Connection.shared.finishedWithPreparedStatement(prepared_statement);
+    }
+});
+
+
+// ------------------------------------------------------------------ loading an existing record
+
+// re-populate properties from fields
+module.exports.define("populatePropertiesFromFields", function () {
+    var that = this;
+    var fields = [
+        "id",
+        "status",
+        "to_addr",
+        "to_user",
+        "subject",
+        "body",
+        "text_string",
+        "attach_content_type",
+        "attach_data",
+    ];
+
+    fields.forEach(function (field) {
+        that[field] = that.getField(field).get();
+    });
+    this.attached_files = JSON.parse(this.getField("attached_files").get() || "[]");
+});
+
+
+module.exports.override("populate", function (resultset) {
+    Data.Entity.populate.call(this, resultset);
+    this.populatePropertiesFromFields();
+});
+
+
+// ------------------------------------------------------------------ create a record from an existing one
+
+module.exports.define("copyBaseSpec", function () { // transactional
+    return {
+        session: this.trans.session,
+        page: this.page,
+        subject: this.getField("subject").getText(),
+        body: this.getField("body").getText(),
+        text_string: this.getField("text_string").get(),
+        attached_files: JSON.parse(this.getField("attached_files").get() || "[]"),
+    };
+});
+
+/*
+use this when 'populate' happen added to Entity
+module.exports.defbind("populatePropertiesFromFields", "populate", function () {
+    var that = this;
+    function copyPropertyFromField(field_id) {
+        that[field_id] = that.getField(field_id).get();
+    }
+    copyPropertyFromField("to_addr");
+    copyPropertyFromField("to_user");
+    copyPropertyFromField("subject");
+    copyPropertyFromField("body");
+});
+*/
+
+
+// ------------------------------------------------------------------ URL manipulation
 
 module.exports.define("populateArrayWithRegexpMatches", function (found_matches, reg_exp, source) {
     var match_str;
@@ -265,43 +536,7 @@ module.exports.define("getBodyWithImagesEmbedded", function () {
 });
 
 
-module.exports.getField("body").override("renderUneditable", function (elem) { // render_opts, inside_table) {
-    var preview_url =
-        Rhino.app.base_uri +
-        "dyn/?mode=renderEmailPreview&page_id=ac_email_display&page_key=" +
-        this.owner.getKey();
-    var style = this.getUneditableCSSStyle();
-    var text = this.getText();
-    var getIframeCode = function (iframe_html) {
-        var outer_html =
-            "<iframe id='email_preview'  title='Email Preview' " +
-            "style='width:100%; height: 300px' " +
-            "scrolling='no' frameborder='0' " +
-            "src='" + preview_url + "' " +
-            "onload='(function () { $(\"#email_preview\").height($($(\"#email_preview\")[0].contentWindow.window.document).height())})()'" +
-            "/>";
-        return outer_html;
-    };
-    if (style) {
-        elem.attribute("style", style);
-    }
-    if (text) {
-        this.owner.cids.each(function (cid) {
-            if (text.indexOf(cid.cid_uri) !== -1) {
-                text = text.split(cid.cid_uri).join(cid.data_uri);
-            }
-        });
-
-        elem.text(getIframeCode(text), true, true);
-    }
-});
-
-
-module.exports.define("indexes", [
-    "id",
-    "session_id, id",
-    "to_user",
-]);
+// ------------------------------------------------------------------ images and CIDs
 
 module.exports.cids.addAll([
     Core.Base.clone({
@@ -348,6 +583,49 @@ module.exports.define("addCidTokensToMap", function (token_map) {
         token_map[cid_key] = cid_value;
     });
 });
+
+
+module.exports.define("loadEmailCIDMap", function () {
+    var root_path = Rhino.app.getProjectRootDir();
+    module.exports.cids.each(function (cid) {
+        var encoder = Packages.org.apache.commons.codec.binary.Base64(true); // true means URL safe
+        var decoder;
+        var image;
+        var io;
+        var bytes;
+
+        if (cid.base64) {
+            decoder = new Packages.sun.misc.BASE64Decoder();
+            bytes = decoder.decodeBuffer(cid.base64);
+        } else if (cid.image) {
+            image = new Packages.java.io.File(root_path + "/" + cid.image);
+            io = new Packages.java.io.DataInputStream(new Packages.java.io.FileInputStream(image));
+            bytes = Packages.java.lang.reflect.Array.newInstance(
+                Packages.java.lang.Byte.TYPE,
+                parseInt(image.length(), 10)
+            );
+            io.readFully(bytes);
+            io.close();
+        }
+        cid.cid_bytes = bytes;
+        cid.cid_key = cid.id + "_cid";
+        cid.cid_uri = "cid:" + cid.cid_key;
+        // that will allow us to:
+        // have a valid html email that works on both email client and browser
+        // use the map item id in the template and detokenize before
+        cid.data_uri = "data:" + cid.type + ";base64," + encoder.encodeBase64String(bytes);
+    });
+});
+
+
+Rhino.app.defbind("emailCids", "loadEnd", function () {
+    module.exports.loadEmailCIDMap();
+    module.exports.loadEmailTemplateMap();
+});
+/** End embed functionality */
+
+
+// ------------------------------------------------------------------ rich text templates
 
 /**
  * used to look up files in ac/email/template/
@@ -408,48 +686,6 @@ module.exports.template_map.get("system").template_part_arr.addAll([
     }),
 ]);
 
-module.exports.define("loadEmailCIDMap", function () {
-    var root_path = Rhino.app.getProjectRootDir();
-    module.exports.cids.each(function (cid) {
-        var encoder = Packages.org.apache.commons.codec.binary.Base64(true); // true means URL safe
-        var decoder;
-        var image;
-        var io;
-        var bytes;
-
-        if (cid.base64) {
-            decoder = new Packages.sun.misc.BASE64Decoder();
-            bytes = decoder.decodeBuffer(cid.base64);
-        } else if (cid.image) {
-            image = new Packages.java.io.File(root_path + "/" + cid.image);
-            io = new Packages.java.io.DataInputStream(new Packages.java.io.FileInputStream(image));
-            bytes = Packages.java.lang.reflect.Array.newInstance(
-                Packages.java.lang.Byte.TYPE,
-                parseInt(image.length(), 10)
-            );
-            io.readFully(bytes);
-            io.close();
-        }
-        cid.cid_bytes = bytes;
-        cid.cid_key = cid.id + "_cid";
-        cid.cid_uri = "cid:" + cid.cid_key;
-        // that will allow us to:
-        // have a valid html email that works on both email client and browser
-        // use the map item id in the template and detokenize before
-        cid.data_uri = "data:" + cid.type + ";base64," + encoder.encodeBase64String(bytes);
-    });
-});
-
-module.exports.define("isDomainInWorkValidList", function (domain) { // C10611
-    var valid_domains = Data.areas.get("ac").params.valid_work_email_domains;
-    return (valid_domains.length === 0 || valid_domains.indexOf(domain) > -1);
-});
-
-
-module.exports.define("isValidWorkEmailDomain", function (email) {   // C10611
-    var domain = email.split("@")[1];
-    return this.isDomainInWorkValidList(domain);
-});
 
 module.exports.define("loadEmailTemplateMap", function () {
     this.template_map.each(function (template_obj) {
@@ -479,198 +715,25 @@ module.exports.define("loadEmailTemplateMap", function () {
     });
 });
 
-Rhino.app.defbind("emailCids", "loadEnd", function () {
-    module.exports.loadEmailCIDMap();
-    module.exports.loadEmailTemplateMap();
-});
-/** End embed functionality */
-
-
-// re-populate properties from fields
-module.exports.define("populatePropertiesFromFields", function () {
-    var that = this;
-    var fields = [ "id", "to_addr", "to_user", "subject", "body", "attach_content_type", "attach_data",
-        ];
-
-    fields.forEach(function (field) {
-        that[field] = that.getField(field).get();
-    });
-    this.attached_files = JSON.parse(this.getField("attached_files").get() || "[]");
-});
-
-
-module.exports.override("populate", function (resultset) {
-    Data.Entity.populate.call(this, resultset);
-    this.populatePropertiesFromFields();
-});
-
-
-module.exports.define("copyBaseSpec", function () { // transactional
-    return {
-        session: this.trans.session,
-        page: this.page,
-        subject: this.getField("subject").getText(),
-        body: this.getField("body").getText(),
-        text_string: this.getField("text_string").get(),
-        attached_files: JSON.parse(this.getField("attached_files").get() || "[]"),
-    };
-});
-
-/*
-use this when 'populate' happen added to Entity
-module.exports.defbind("populatePropertiesFromFields", "populate", function () {
-    var that = this;
-    function copyPropertyFromField(field_id) {
-        that[field_id] = that.getField(field_id).get();
-    }
-    copyPropertyFromField("to_addr");
-    copyPropertyFromField("to_user");
-    copyPropertyFromField("subject");
-    copyPropertyFromField("body");
-});
-*/
-
-module.exports.define("create", function (options) {
-    var email_row = this.createPerUser(options);
-    var query;
-
-    if (options.include_delegates) {
-        if (!options.to_user) {
-            this.throwError({
-                id: "invalid_option",
-                text: "'include_delegates' parameter specified with blank 'to_user' property",
-            });
-        }
-        email_row.delegates_email_rows = [];
-        query = Data.entities.get("ac_user_deleg").getQuery();
-        query.addCondition({
-            column: "A.delegater",
-            operator: "=",
-            value: options.to_user,
-        });
-        query.addCondition({
-            column: "A.get_ntfcns",
-            operator: "=",
-            value: "Y",
-        });
-        while (query.next()) {
-            options.to_user = query.getColumn("A.delegatee").get();
-            email_row.delegates_email_rows.push(this.createPerUser(options));
-        }
-        query.reset();
-    }
-    return email_row;
-});
-
-
-module.exports.define("createPerUser", function (options) {
-    var email_row;
-    email_row = module.exports.cloneAutoIncrement(options, {
-        session_id : options.session.getSessionId(),
-        page       : (options.page && options.page.id) || "",
-        to_user    : options.to_user || "",
-        status     : options.status || "D",
-        status_msg : "Not tried to send",
-        created_at : "NOW",
-    });
-    email_row.id = email_row.getKey();
-    email_row.attached_files = options.attached_files || [];
-    email_row.populateFromUser();
-    email_row.populateFromTextString();
-    email_row.updateRecord(false);
-    if (email_row.page) {
-        email_row.page.addEmailRow(email_row);
-    }
-    // email_row.initialize();
-    return email_row;
-});
-
-module.exports.define("populateFromUser", function () {
-    var user_row;
-
-    if (this.to_user) {
-        if (this.trans && this.trans.isInCache("ac_user", this.to_user)) {
-            user_row = this.trans.getActiveRow("ac_user", this.to_user);
-        } else {
-            user_row = Data.entities.get("ac_user").getRow(this.to_user);
-        }
-
-        if (user_row.getField("email_verification").get() === "R") {
-            this.fatal("User's '" + user_row.getKey() + "' email address is repudiated");
-            this.session.messages.add({
-                type: "W",
-                text: "Users '" + user_row.getKey() + "' email address is not verified",
-            });
-            this.repudiated = true;
-        }
-
-        this.user_name = this.user_name || user_row.getField("name").get();
-        this.to_addr = this.to_addr || user_row.getField("email").get();
-    }
-
-    if (typeof this.to_addr !== "string") {
-        this.throwError({
-            id: "invalid_option",
-            text: "'to_addr' parameter is missing or not a string",
-            text_string: this.text_string,
-        });
-    }
-
-    if (this.user_name) {
-        this.nice_name = this.nice_name || Core.Format.convertNameFirstSpaceLast(this.user_name);
-        this.first_name = this.first_name || Core.Format.convertNameFirstOnly(this.user_name);
-        this.last_name = this.last_name || Core.Format.convertNameLastOnly(this.user_name);
-    }
-    // C9625
-    this.email_header = this.nice_name ? this.email_header + this.nice_name + ",<br/>" : "";
-});
-
-
-module.exports.define("populateFromTextString", function () {
-    var text_string;
-    if (this.text_string) {
-        text_string = Data.entities.get("sy_text").getText(this.text_string);
-        if (!text_string) {
-            this.throwError("unrecognized text string: " + this.text_string);
-        }
-        this.subject = this.subject || text_string.text;
-        this.body = this.body || text_string.detail;
-        if (text_string.calendar_event) {
-            this.event_digest = this.event_title;
-            this.attach_content_type = "text/calendar";
-            this.attach_data = Core.Format.getVCalString(this);
-        }
-    }
-    this.app_title = this.app_title || Rhino.app.title;
-    this.app_id = Rhino.app.app_id;
-    this.email_id = this.id;
-    this.base_uri = this.base_uri || Rhino.app.base_uri;
-    this.product_name = this.product_name || Rhino.app.product_name;
-    this.client_name = this.client_name || (Rhino.app.client && Rhino.app.client.organization_name);
-    if (typeof this.subject !== "string") {
-        this.throwError({
-            id: "invalid_option",
-            text: "'subject' parameter is missing or not a string",
-            text_string: this.text_string,
-        });
-    }
-    if (typeof this.body !== "string") {
-        this.throwError({
-            id: "invalid_option",
-            text: "'body' parameter is missing or not a string",
-            text_string: this.text_string,
-        });
-    }
-    if (this.use_html_format) {
-        this.populateHTML();
-    } else {
-        this.populateText();
-    }
-});
 
 module.exports.define("getHTMLTemplateID", function () {
     return "system";
 });
+
+
+// ------------------------------------------------------------------ domain validation
+
+module.exports.define("isDomainInWorkValidList", function (domain) { // C10611
+    var valid_domains = Data.areas.get("ac").params.valid_work_email_domains;
+    return (valid_domains.length === 0 || valid_domains.indexOf(domain) > -1);
+});
+
+
+module.exports.define("isValidWorkEmailDomain", function (email) {   // C10611
+    var domain = email.split("@")[1];
+    return this.isDomainInWorkValidList(domain);
+});
+
 
 module.exports.define("populateHTML", function () {
     var body_template;
@@ -685,6 +748,7 @@ module.exports.define("populateHTML", function () {
     // detokenize the subject
     this.subject = this.detokenize(this.subject, Core.Base.replaceToken);
 });
+
 
 module.exports.define("populateText", function () {
     if (!this.suppress_footer_ident) {
@@ -723,33 +787,6 @@ module.exports.define("initialize", function () {
 });
 */
 
-module.exports.define("updateRecord", function (sent) {
-    var sql = "UPDATE ac_email SET subject=?, body=?, status=?, status_msg=?, text_string=?, attach_content_type=?, attach_data=?, attached_files=?";
-    var prepared_statement;
-
-    this.debug("updateRecord(): " + this.subject + ", " + this.status + ", " + this.status_msg + ", " + this.text_string);
-    if (sent) {
-        sql += ", sent_at=now()";
-    }
-    sql += " WHERE id=?";
-    try {
-        prepared_statement = SQL.Connection.shared.prepareStatement(sql);
-        prepared_statement.setString(1, this.subject);
-        prepared_statement.setString(2, this.body);
-        prepared_statement.setString(3, this.status);
-        prepared_statement.setString(4, this.status_msg);
-        prepared_statement.setString(5, this.text_string || null);
-        prepared_statement.setString(6, this.attach_content_type || "");
-        prepared_statement.setString(7, this.attach_data || "");
-        prepared_statement.setString(8, JSON.stringify(this.attached_files));
-        prepared_statement.setInt(9, this.id);
-        prepared_statement.executeUpdate();
-    } catch (e) {
-        this.report(e);
-    } finally {
-        SQL.Connection.shared.finishedWithPreparedStatement(prepared_statement);
-    }
-});
 
 /*
 module.exports.define("makeMultiPartEmail", function () {
@@ -769,6 +806,17 @@ module.exports.define("makeMultiPartEmail", function () {
     return email;
 }
 */
+
+
+module.exports.define("send", function () {
+    this.real_send();
+    if (this.delegates_email_rows) {
+        this.delegates_email_rows.forEach(function (email_row) {
+            email_row.real_send();
+        });
+    }
+});
+
 
 module.exports.define("real_send", function () {
     var email;
@@ -886,14 +934,6 @@ module.exports.define("setTextMsg", function () {
     return email;
 });
 
-module.exports.define("send", function () {
-    this.real_send();
-    if (this.delegates_email_rows) {
-        this.delegates_email_rows.forEach(function (email_row) {
-            email_row.real_send();
-        });
-    }
-});
 
 module.exports.define("replaceToken_file", function (tokens) {
     var file_id = tokens[1];
