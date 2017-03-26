@@ -52,7 +52,7 @@ module.exports.defbind("updateAfterSections", "updateAfterSections", function (p
     if (params.page_button === "send") {
         fieldset.addValuesToObject(spec);
         this.send(spec);
-        this.redirect_url = "index.html?page_id=ac_email_display&page_key=" + spec.id;
+        this.redirect_url = UI.pages.get("ac_email_display").getSimpleURL(spec.id);
         this.active = false;
     }
 });
