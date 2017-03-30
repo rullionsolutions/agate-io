@@ -698,8 +698,9 @@ module.exports.define("loadEmailTemplateMap", function () {
         }
         template_obj.template_part_arr.each(function (template_part_obj) {
             var file_name;
-            // var module_path = IO.File.getModulePath(module);            // DOESN'T WORK IN TOMCAT
-            var module_path = Rhino.app.sapphire_dir + "../";               // TODO - doesn't allow for agate-io in different node_modules dir...
+            var module_path = IO.File.getModulePath(module);            // DOESN'T WORK IN TOMCAT
+                                                                        // not sure on what you mean here.
+//            var module_path = Rhino.app.sapphire_dir + "../";               // TODO - doesn't allow for agate-io in different node_modules dir...
             IO.File.debug("getModulePath(" + module + ") = " + module_path);
 
             if (template_part_obj.file_name) {
