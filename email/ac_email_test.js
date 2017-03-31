@@ -11,8 +11,8 @@ module.exports = Data.entities.get("ac_email");
 module.exports.dummy_tokens = {
         product_name: "myRecruiter",
         base_uri    : Rhino.app.base_uri,
-        unlock_url  : "index.html?page_id=ac_user_unlock&&user_id=&unlock_code=",
-        url         : "index.html?page_id=vr_rqmt_display&page_key=2",
+        unlock_url  : "index.html#page_id=ac_user_unlock&&user_id=&unlock_code=",
+        url         : "index.html#page_id=vr_rqmt_display&page_key=2",
         to_user     : "kurolaj",
         email_footer: "Kind regards",
         nice_name   : "Test",
