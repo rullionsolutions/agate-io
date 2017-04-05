@@ -1,6 +1,8 @@
 "use strict";
 
 
+require("agate-io/config.js");
+
 require("agate-io/email/ac_email.js");
 require("agate-io/email/ac_email_context.js");
 require("agate-io/email/ac_email_create.js");
