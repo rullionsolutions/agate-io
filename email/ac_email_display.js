@@ -1,7 +1,7 @@
 "use strict";
 
-
 var UI = require("lazuli-ui/index.js");
+
 
 module.exports = UI.Page.clone({
     id              : "ac_email_display",
