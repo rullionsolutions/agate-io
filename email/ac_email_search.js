@@ -1,9 +1,9 @@
 "use strict";
 
-
 var UI = require("lazuli-ui/index.js");
 
-module.exports = UI.Page.clone({
+
+module.exports = UI.SearchPage.clone({
     id               : "ac_email_search",
     entity_id       : "ac_email",
     title            : "Search for Emails",
@@ -18,7 +18,7 @@ module.exports.sections.addAll([
 
 module.exports.links.addAll([
     { id: "cre_email", page_to: "ac_email_create" },
-    { id: "cre_cal"  , page_to: "ac_email_cal_create" }
+    { id: "cre_cal", page_to: "ac_email_cal_create" }
 ]);
 
 
