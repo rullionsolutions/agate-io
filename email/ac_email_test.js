@@ -63,7 +63,7 @@ module.exports.dummy_tokens = {
 
 
 module.exports.define("testExistingEmail", function (email_id, addr, html, footer) {
-    var s = Access.Session.clone({
+    var s = Access.Session.getNewSession({
         user_id:"batch",
     });
     var options;
@@ -94,7 +94,7 @@ module.exports.define("testExistingEmail", function (email_id, addr, html, foote
 
 
 module.exports.define("testEmail", function (addr) {
-    var s = Access.Session.clone({
+    var s = Access.Session.getNewSession({
         user_id:"batch",
     });
     var options;

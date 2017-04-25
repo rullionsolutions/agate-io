@@ -60,22 +60,19 @@ module.exports.override("archive", function (path, non_destructive, max_trans, m
 
 
 module.exports.define("create", function (request, response) {
-    var import_row;
-    this.session = Access.Session.clone({ user_id: "batch" });
-    import_row = this.clone({
-        id: String(Data.entities.get("ac_max_key").generate("ac_import", null, null, "id", null, this.session)),
+    var import_row = Data.entities.get("ac_import").cloneAutoIncrement({
+        session: Access.Session.getNewSession({ user_id: "batch" }),
         modifiable: true,
         rpns_headers: {},
-        rpns_body   : "",
-        rpns_status : "501"         // not implemented
-    });
+        rpns_body: "",
+        rpns_status : "501",         // not implemented
+    }, {});
     import_row.processRequest(request);
     import_row.exec();
     import_row.createResponse(response);
     import_row.dbUpdate();
     import_row.execAfter();
-    this.session.close();
-
+    import_row.session.close();
     return import_row;
 });
 

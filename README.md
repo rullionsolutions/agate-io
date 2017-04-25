@@ -1,2 +1,2 @@
 # agate-io
-Entity and Page objects corresponding to lazuli-io
+Persistent Entities for Emails, Files, Imports and Exports
