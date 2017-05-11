@@ -1,5 +1,6 @@
 "use strict";
 
+require("agate-io/aug-lapis-core/Format.js");
 
 require("agate-io/config.js");
 
