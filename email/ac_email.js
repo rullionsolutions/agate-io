@@ -223,7 +223,7 @@ module.exports.define("createPerUser", function (options) {
         session_id: options.session.getSessionId(),
         page: (options.page && options.page.id) || "",
         to_user: options.to_user || "",
-        status: options.status || "D",
+        status: "D",
         status_msg: "Not tried to send",
         text_string: (options.text_string || ""),
         created_at: "NOW",
@@ -232,6 +232,8 @@ module.exports.define("createPerUser", function (options) {
     email_row.attached_files = options.attached_files || [];
     email_row.populateFromUser();
     email_row.populateFromTextString();
+
+    email_row.status = email_row.getField("status").get();
     email_row.updateRecord(false);
     if (email_row.page) {
         email_row.page.addEmailRow(email_row);
