@@ -16,7 +16,7 @@ module.exports = Data.Entity.clone({
     default_order: "id,id",
     title_field: "subject",
     transactional: false,
-    display_page: true,
+    // display_page: true,
 //    autocompleter: true,
 //    parent_entity: "ac_session",
     non_parent_link_field: "session_id",
@@ -118,6 +118,7 @@ module.exports.addFields([
     },
     {
         id: "body",
+        visible: false,
         label: "Body Text",
         type: "Textarea",
         css_type: "rich_email",
@@ -150,7 +151,7 @@ module.exports.define("indexes", [
     "to_user",
 ]);
 
-
+/*
 module.exports.getField("body").override("renderUneditable", function (elem) { // render_opts, inside_table) {
     var preview_url =
         Rhino.app.base_uri +
@@ -181,7 +182,7 @@ module.exports.getField("body").override("renderUneditable", function (elem) { /
         elem.text(getIframeCode(text), true, true);
     }
 });
-
+*/
 
 // ------------------------------------------------------------------ initial creation
 
@@ -228,7 +229,7 @@ module.exports.define("createPerUser", function (options) {
         text_string: (options.text_string || ""),
         created_at: "NOW",
     });
-    email_row.id = email_row.getKey();
+    // email_row.getKey();             // sets email_row.key
     email_row.attached_files = options.attached_files || [];
     email_row.populateFromUser();
     email_row.populateFromTextString();
@@ -300,7 +301,7 @@ module.exports.define("populateFromTextString", function () {
     }
     this.app_title = this.app_title || Rhino.app.title;
     this.app_id = Rhino.app.app_id;
-    this.email_id = this.id;
+    this.email_id = this.getKey();
     this.base_uri = this.base_uri || Rhino.app.base_uri;
     this.product_name = this.product_name || Rhino.app.product_name;
     this.client_name = this.client_name || (Rhino.app.client && Rhino.app.client.organization_name);
@@ -348,7 +349,7 @@ module.exports.define("updateRecord", function (sent) {
         prepared_statement.setString(7, this.attach_content_type || null);
         prepared_statement.setString(8, this.attach_data || null);
         prepared_statement.setString(9, JSON.stringify(this.attached_files));
-        prepared_statement.setInt(10, this.id);
+        prepared_statement.setInt(10, this.getKey());
         prepared_statement.executeUpdate();
     } catch (e) {
         this.report(e);
@@ -364,7 +365,7 @@ module.exports.define("updateRecord", function (sent) {
 module.exports.define("populatePropertiesFromFields", function () {
     var that = this;
     var fields = [
-        "id",
+        // "id",
         "status",
         "to_addr",
         "to_user",

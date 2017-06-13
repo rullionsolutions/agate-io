@@ -16,31 +16,34 @@ module.exports = UI.Page.clone({
 
 module.exports.sections.addAll([
     {
+        id: "params",
+        type: "FormParams",
+        text: "You can enter a new e-mail address otherwise the one below will be used.",
+    },
+    {
         id: "main",
         type: "Display",
         entity: "ac_email",
     },
     {
-        id: "params",
-        type: "FormParams",
-        text: "You can enter a new e-mail address otherwise the one below will be used.",
-    }
+        id: "body",
+        type: "DisplayEmailBody",
+    },
 ]);
 
 
 module.exports.defbind("setAddress", "setupEnd", function () {
-    var fieldset,
-        user_row,
-        default_addr = "";
+    var fieldset = this.sections.get("params").fieldset;
+    var user_row;
+    var default_addr = "";
 
-    fieldset = this.sections.get("params").fieldset;
     fieldset.addFields([
         { id: "to_addr", type: "Email", label: "To Address",  mandatory: true }
     ]);
 
     if (!this.getPrimaryRow().getField("to_user").isBlank()) {
         // Use the user's address
-        user_row     = this.getPrimaryRow().getField("to_user").getRow(false);
+        user_row = this.getPrimaryRow().getField("to_user").getRow(false);
         default_addr = user_row.getField("email").get();
     }
     // Use the address from the original e-mail
@@ -48,6 +51,8 @@ module.exports.defbind("setAddress", "setupEnd", function () {
         default_addr = this.getPrimaryRow().getField("to_addr").get();
     }
     fieldset.getField("to_addr").set(default_addr);
+
+    this.sections.get("body").record = this.getPrimaryRow();
 });
 
 
